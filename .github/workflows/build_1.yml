@@ -1,0 +1,60 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Luau
+        run: |
+          curl -fsSL -o luau.zip https://github.com/luau-lang/luau/releases/latest/download/luau-ubuntu.zip
+          unzip -q luau.zip -d luau
+          chmod +x luau/luau luau/luau-analyze luau/luau-compile
+          echo "$PWD/luau" >> "$GITHUB_PATH"
+
+      - name: File info
+        run: |
+          echo "main.lua: $(wc -c < main.lua) characters, $(wc -l < main.lua) lines"
+
+      - name: No Unicode characters
+        run: |
+          if grep -nP '[^\x00-\x7F]' main.lua; then
+            echo "::error::Non-ASCII characters found in main.lua"
+            exit 1
+          fi
+          echo "ASCII only"
+
+      - name: Compile (syntax and local limit)
+        run: luau-compile --text main.lua > /dev/null
+
+      - name: Analyze (syntax and type errors)
+        run: |
+          luau-analyze main.lua > analyze.txt 2>&1 || true
+          # Roblox globals (game, Enum, task ...) are unknown to plain Luau, so skip those
+          if grep -E 'SyntaxError|TypeError' analyze.txt | grep -v "Unknown global"; then
+            echo "::error::Luau found errors in main.lua"
+            exit 1
+          fi
+          echo "No syntax or type errors"
+
+      - name: Analyze with Roblox API types (advisory)
+        continue-on-error: true
+        run: |
+          curl -fsSL -o luau-lsp.zip https://github.com/JohnnyMorganz/luau-lsp/releases/latest/download/luau-lsp-linux-x86_64.zip
+          unzip -q luau-lsp.zip -d lsp
+          chmod +x lsp/luau-lsp
+          curl -fsSL -o globalTypes.d.luau https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/main/scripts/globalTypes.d.luau
+          lsp/luau-lsp analyze --definitions=globalTypes.d.luau main.lua
+
+      - name: Loader line
+        run: |
+          echo "Loader:"
+          echo "loadstring(game:HttpGet(\"https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/main.lua\"))()"
