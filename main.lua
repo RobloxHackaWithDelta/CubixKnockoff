@@ -577,7 +577,7 @@ local function beautify(src)
 			code = code:gsub("%-%-.*$", "")
 			local first = code:match("^%s*([%a_]+)")
 			local lead = 0
-			if code:match("^%s*end%f[^%w_]") or code:match("^%s*until%f[^%w_]") or code:match("^%s*[%)%}%]]") then
+			if code:match("^%s*end%f[^%w_]") or code:match("^%s*until%f[^%w_]") or code:match("^%s*[%)}%]]") then
 				lead = 1
 			elseif first == "else" or first == "elseif" then
 				lead = 1
@@ -594,8 +594,8 @@ local function beautify(src)
 					kwClose = kwClose + 1
 				end
 			end
-			local _, po = code:gsub("[%(%{%[]", "")
-			local _, pc = code:gsub("[%)%}%]]", "")
+			local _, po = code:gsub("[%({%[]", "")
+			local _, pc = code:gsub("[%)}%]]", "")
 			local net = po - pc
 			local kwNet = kwOpen - kwClose
 			local opens = math.max(kwNet > 0 and kwNet or 0, net > 0 and 1 or 0)
